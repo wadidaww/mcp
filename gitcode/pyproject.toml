@@ -1,0 +1,27 @@
+[project]
+name = "gitcode-mcp"
+version = "0.1.0"
+description = "MCP server for reading pull requests from GitCode (gitcode.com) repositories"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.3,<3",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+gitcode-mcp = "gitcode_mcp.server:main"
+gitcode-prs = "gitcode_mcp.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gitcode_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
