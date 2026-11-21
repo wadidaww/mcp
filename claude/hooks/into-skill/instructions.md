@@ -38,16 +38,12 @@ concise, imperative instructions.
 
 ## 3. Make the change on a branch, away from the user's current project
 
-Do not touch the working directory {{CWD}} for this step unless it *is* the clone.
+Do not touch the working directory {{CWD}} or its current branch for this step.
 
-```bash
-# Clone once if missing
-[ -d "{{CLONE}}/.git" ] || gh repo clone {{REPO}} "{{CLONE}}"
-cd "{{CLONE}}"
-git status --porcelain          # must be clean; if not, stop and tell the user
-git fetch origin {{BASE}}
-git switch -c into-skill/<short-slug>-{{TODAY}} origin/{{BASE}}
-```
+{{BRANCH_SETUP}}
+
+If your environment assigns you a branch to push to (Claude Code on the web does), use that
+branch name instead of `into-skill/...`.
 
 Before writing, check for an open PR that already covers this lesson
 (`gh pr list --repo {{REPO}} --label into-skill --state open`, or search titles for
@@ -62,6 +58,7 @@ that would not make sense elsewhere.
 git add -A
 git commit -m "into-skill: <one-line summary>"
 git push -u origin HEAD
+# With gh; without it, use a GitHub tool with the same title, base and body
 gh pr create --repo {{REPO}} --base {{BASE}} \
   --title "[INTO-SKILL] <one-line summary>" \
   --body "<body, see below>"

@@ -9,6 +9,7 @@ to set that up.
 | --- | --- | --- |
 | [`skills/`](skills/) | One folder per skill, each with a `SKILL.md` | `~/.claude/skills/<name>/` |
 | [`rules/`](rules/) | Short standing guidance, one Markdown file per topic | `~/.claude/rules/*.md` |
+| [`chat/`](chat/) | Setup for using `[INTO-SKILL]` in the claude.ai chat, which has no hooks | your claude.ai preferences |
 | [`hooks/`](hooks/) | Deterministic automation, one folder per hook with its script, a `settings.example.json` and a README | `~/.claude/settings.json` |
 
 `hooks/into-skill/install.py --link` symlinks every skill and rule from a local clone into

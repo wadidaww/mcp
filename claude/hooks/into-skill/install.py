@@ -11,6 +11,11 @@ What it does, all idempotent:
 
 Usage:
   python3 install.py [--claude-dir ~/.claude] [--clone] [--link]
+  python3 install.py --project /path/to/repo     # per-repo, for Claude Code on the web
+
+--project copies the hook into <repo>/.claude/hooks/into-skill/ and registers it in
+<repo>/.claude/settings.json with a $CLAUDE_PROJECT_DIR path, so it runs in any session
+(local or cloud) opened on that repo once you commit those files.
 """
 
 from __future__ import annotations
@@ -30,6 +35,9 @@ MARKER = "hooks/into-skill/into_skill.py"
 
 def hook_command(claude_dir: Path) -> str:
     return f'python3 "{claude_dir / "hooks" / "into-skill" / "into_skill.py"}"'
+
+
+PROJECT_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/into-skill/into_skill.py"'
 
 
 def copy_hook(claude_dir: Path) -> Path:
@@ -56,12 +64,12 @@ def merge_settings(settings: dict, command: str) -> tuple[dict, bool]:
     return settings, True
 
 
-def update_settings(claude_dir: Path) -> bool:
+def update_settings(claude_dir: Path, command: str | None = None, backup: bool = True) -> bool:
     path = claude_dir / "settings.json"
     settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    settings, changed = merge_settings(settings, hook_command(claude_dir))
+    settings, changed = merge_settings(settings, command or hook_command(claude_dir))
     if changed:
-        if path.exists():
+        if backup and path.exists():
             shutil.copy2(path, path.with_suffix(".json.bak"))
         path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
     return changed
@@ -115,7 +123,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--claude-dir", default="~/.claude", help="Claude Code config dir (default ~/.claude)")
     parser.add_argument("--clone", action="store_true", help="clone the target repo if missing")
     parser.add_argument("--link", action="store_true", help="symlink skills and rules from the clone")
+    parser.add_argument("--project", metavar="DIR", help="install into DIR/.claude for every session on that repo")
     args = parser.parse_args(argv)
+
+    if args.project:
+        proj_claude = Path(os.path.expanduser(args.project)).resolve() / ".claude"
+        dest = copy_hook(proj_claude)
+        print(f"hook installed: {dest}")
+        changed = update_settings(proj_claude, PROJECT_COMMAND, backup=False)  # it's in git
+        print(f"{proj_claude / 'settings.json'}: " + ("updated" if changed else "already configured"))
+        print("commit .claude/hooks/into-skill/ and .claude/settings.json to enable it for that repo")
+        return 0
 
     claude_dir = Path(os.path.expanduser(args.claude_dir)).resolve()
     repo = os.environ.get("INTO_SKILL_REPO", "wadidaww/mcp")

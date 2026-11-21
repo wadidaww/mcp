@@ -51,6 +51,23 @@ python3 ~/.claude/into-skill/repo/claude/hooks/into-skill/install.py --link
 
 Edits to existing skills and rules apply with just the `git pull`, since they are symlinks.
 
+### Claude Code on the web (claude.ai/code)
+
+Cloud sessions start from a fresh container, so `~/.claude` does not carry over. Install the
+hook into the repository instead, and commit it:
+
+- **In wadidaww/mcp itself** this is already done: `.claude/settings.json` at the repo root
+  runs `claude/hooks/into-skill/into_skill.py`. When the session is a checkout of the target
+  repo, Claude works in a separate `git worktree` so your current branch is left alone.
+- **In any other repo**, run `python3 claude/hooks/into-skill/install.py --project /path/to/repo`,
+  then commit `.claude/hooks/into-skill/` and `.claude/settings.json` there. Also attach
+  wadidaww/mcp to the cloud environment so the session can clone it and push.
+
+The cloud session uses `gh` if it has it, and otherwise the GitHub tools the session already
+has. If the environment only allows pushing to an assigned branch, Claude uses that branch.
+
+For the regular claude.ai chat, which has no hooks, see [`claude/chat/`](../../chat/).
+
 ### Manual install
 
 Copy `into_skill.py` and `instructions.md` to `~/.claude/hooks/into-skill/` and merge
@@ -64,7 +81,7 @@ Set these in your shell or in the `env` block of `settings.json`. All are option
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `INTO_SKILL_REPO` | `wadidaww/mcp` | GitHub repo that receives the PRs |
-| `INTO_SKILL_CLONE` | `~/.claude/into-skill/repo` | Local clone Claude edits |
+| `INTO_SKILL_CLONE` | the current project if it is a checkout of `INTO_SKILL_REPO`, else `~/.claude/into-skill/repo` | Local clone Claude edits |
 | `INTO_SKILL_BASE` | `main` | Base branch for PRs |
 | `INTO_SKILL_ROOT` | `claude` | Folder in the repo holding skills, rules and hooks |
 | `INTO_SKILL_TEMPLATE` | `instructions.md` beside the script | Your own instructions file; supports the `{{...}}` placeholders used in the default |

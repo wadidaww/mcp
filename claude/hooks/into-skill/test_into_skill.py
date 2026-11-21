@@ -69,10 +69,50 @@ class ContextTests(unittest.TestCase):
     def test_missing_gh_warns(self):
         ctx = into_skill.build_context(self.payload, {}, TEMPLATE, which=lambda t: None if t == "gh" else "/bin/x")
         self.assertIn("`gh` was not found", ctx)
+        self.assertIn("GitHub tool", ctx)
 
     def test_empty_note(self):
         ctx = into_skill.build_context({"prompt": "[INTO-SKILL]"}, {}, TEMPLATE, which=lambda _: "/bin/x")
         self.assertIn("infer the lesson", ctx)
+
+
+class CloneModeTests(unittest.TestCase):
+    def test_remote_matches(self):
+        for url in ["https://github.com/wadidaww/mcp", "https://github.com/wadidaww/mcp.git",
+                    "git@github.com:wadidaww/mcp.git", "http://proxy@127.0.0.1:1234/git/WadidaWW/mcp/"]:
+            self.assertTrue(into_skill.remote_matches(url, "wadidaww/mcp"), url)
+        for url in ["https://github.com/wadidaww/mcp-other", "https://github.com/x/wadidaww-mcp"]:
+            self.assertFalse(into_skill.remote_matches(url, "wadidaww/mcp"), url)
+
+    def test_project_checkout_uses_worktree(self):
+        cfg = into_skill.load_config({"CLAUDE_PROJECT_DIR": "/proj"}, {}, origin=lambda p: "https://github.com/wadidaww/mcp")
+        self.assertEqual(cfg["INTO_SKILL_CLONE"], "/proj")
+        self.assertEqual(cfg["IN_PROJECT"], "yes")
+        ctx = into_skill.build_context({"prompt": "[INTO-SKILL] x", "cwd": "/proj"}, {"CLAUDE_PROJECT_DIR": "/proj"},
+                                       TEMPLATE, which=lambda _: "/bin/x")
+        # Real git lookup here: /proj does not exist, so it falls back to a separate clone.
+        self.assertIn("gh repo clone", ctx)
+
+    def test_other_project_uses_separate_clone(self):
+        cfg = into_skill.load_config({"CLAUDE_PROJECT_DIR": "/proj"}, {}, origin=lambda p: "https://github.com/a/b")
+        self.assertEqual(cfg["IN_PROJECT"], "")
+        self.assertTrue(cfg["INTO_SKILL_CLONE"].endswith(".claude/into-skill/repo"))
+
+    def test_explicit_clone_wins(self):
+        cfg = into_skill.load_config({"INTO_SKILL_CLONE": "/c", "CLAUDE_PROJECT_DIR": "/proj"}, {},
+                                     origin=lambda p: "https://github.com/wadidaww/mcp")
+        self.assertEqual(cfg["INTO_SKILL_CLONE"], "/c")
+
+    def test_in_this_repo_end_to_end(self):
+        # This test file lives inside a checkout of the target repo when run from wadidaww/mcp.
+        repo_root = HERE.parents[2]
+        url = into_skill.git_origin(str(repo_root))
+        if not url or not into_skill.remote_matches(url, "wadidaww/mcp"):
+            self.skipTest("not running inside a wadidaww/mcp checkout")
+        res = run_hook({"prompt": "[INTO-SKILL] x", "cwd": str(repo_root)}, {"CLAUDE_PROJECT_DIR": str(repo_root)})
+        ctx = json.loads(res.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("git worktree add", ctx)
+        self.assertNotIn("gh repo clone", ctx)
 
 
 class ScriptTests(unittest.TestCase):
@@ -150,6 +190,21 @@ class InstallTests(unittest.TestCase):
             cmd = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
             res = subprocess.run(cmd, shell=True, input=json.dumps({"prompt": "[INTO-SKILL] hi"}),
                                  capture_output=True, text=True, check=False)
+            self.assertIn("into-skill-request", res.stdout, res.stderr)
+
+    def test_project_install(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            self.assertEqual(install.main(["--project", str(proj)]), 0)
+            self.assertEqual(install.main(["--project", str(proj)]), 0)
+            self.assertTrue((proj / ".claude" / "hooks" / "into-skill" / "into_skill.py").exists())
+            self.assertFalse((proj / ".claude" / "settings.json.bak").exists())
+            settings = json.loads((proj / ".claude" / "settings.json").read_text())
+            cmd = settings["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"]
+            self.assertEqual(cmd, install.PROJECT_COMMAND)
+            res = subprocess.run(cmd, shell=True, input=json.dumps({"prompt": "[INTO-SKILL] hi"}),
+                                 capture_output=True, text=True, check=False,
+                                 env={**os.environ, "CLAUDE_PROJECT_DIR": str(proj)})
             self.assertIn("into-skill-request", res.stdout, res.stderr)
 
 
